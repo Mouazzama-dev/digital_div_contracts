@@ -60,6 +60,29 @@ pub mod testt {
         msg!("Transaction processed. Fee collected: {}", fee);
         Ok(())
     }
+
+        // Method to take a snapshot of user balances
+        pub fn snapshot_balance(ctx: Context<SnapshotBalance>, balance: u64) -> Result<()> {
+            let user_snapshot = &mut ctx.accounts.user_snapshot;
+            user_snapshot.balances.push(balance);
+            msg!("Snapshot taken: {}", balance);
+            Ok(())
+        }
+    
+        // Method to distribute rewards
+        pub fn distribute_rewards(ctx: Context<DistributeRewards>) -> Result<()> {
+            let snapshot = &ctx.accounts.user_snapshot;
+            let total_balance: u64 = snapshot.balances.iter().sum();
+            let total_rewards = 10000; // Example total rewards
+            let reward_per_unit = total_rewards / total_balance;
+    
+            let user_reward = snapshot.balances.last().unwrap_or(&0) * reward_per_unit;
+            msg!("Reward distributed: {}", user_reward);
+    
+            // Logic for transferring rewards (not implemented)
+            Ok(())
+        }
+    
     }
 
 #[derive(Accounts)]
@@ -99,10 +122,42 @@ pub struct HandleTransaction<'info> {
     pub system_program: Program<'info, System>,
 }
 
-// PDA Structures
+#[derive(Accounts)]
+pub struct SnapshotBalance<'info> {
+    #[account(
+        init,
+        seeds = [b"user", user.key().as_ref()],
+        bump,
+        payer = user,
+        space = 8 + 32 + (100 * 8) // Owner + Vec<u64> for balances
+    )]
+    pub user_snapshot: Account<'info, UserSnapshot>,
+    #[account(mut)]
+    pub user: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct DistributeRewards<'info> {
+    #[account(
+        seeds = [b"user", user.key().as_ref()],
+        bump
+    )]
+    pub user_snapshot: Account<'info, UserSnapshot>,
+    pub user: Signer<'info>,
+
+    // Include accounts for token transfer
+}
+
+#[account]
+pub struct UserSnapshot {
+    pub owner: Pubkey,
+    pub balances: Vec<u64>,
+}
+
 #[account]
 pub struct FeePda {
-    pub balance: u64, // Total collected fees
+    pub balance: u64,
 }
 
 #[error_code]
