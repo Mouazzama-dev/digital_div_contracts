@@ -73,16 +73,34 @@ pub mod testt {
         pub fn distribute_rewards(ctx: Context<DistributeRewards>) -> Result<()> {
             let snapshot = &ctx.accounts.user_snapshot;
             let total_balance: u64 = snapshot.balances.iter().sum();
-            let total_rewards = 10000; // Example total rewards
+            let total_rewards = 10000; // Example total rewards, this could also be dynamic or stored in an account
             let reward_per_unit = total_rewards / total_balance;
-    
+        
             let user_reward = snapshot.balances.last().unwrap_or(&0) * reward_per_unit;
             msg!("Reward distributed: {}", user_reward);
-    
-            // Logic for transferring rewards (not implemented)
+        
+            if ctx.accounts.fee_pda.balance < user_reward {
+                return Err(CustomError::InsufficientFunds.into());
+            }
+        
+            // Perform the transfer from fee_pda to user_account
+            let cpi_accounts = TransferChecked {
+                from: ctx.accounts.fee_pda.to_account_info(),
+                mint: ctx.accounts.mint.to_account_info(),
+                to: ctx.accounts.user_token_account.to_account_info(),
+                authority: ctx.accounts.fee_pda.to_account_info(),
+            };
+            let cpi_program = ctx.accounts.token_program.to_account_info();
+            let cpi_context = CpiContext::new(cpi_program, cpi_accounts);
+            token_interface::transfer_checked(cpi_context, user_reward, ctx.accounts.mint.decimals)?;
+            
+            // Decrease fee_pda balance by the amount transferred
+            ctx.accounts.fee_pda.balance -= user_reward;
+        
+            msg!("Rewards transferred: {}", user_reward);
             Ok(())
         }
-    
+            
     }
 
 #[derive(Accounts)]
@@ -140,13 +158,24 @@ pub struct SnapshotBalance<'info> {
 #[derive(Accounts)]
 pub struct DistributeRewards<'info> {
     #[account(
+        mut,
+        seeds = [b"fee_pda"],
+        bump
+    )]
+    pub fee_pda: Account<'info, FeePda>,
+    #[account(
         seeds = [b"user", user.key().as_ref()],
         bump
     )]
     pub user_snapshot: Account<'info, UserSnapshot>,
+    #[account(mut)]
     pub user: Signer<'info>,
-
-    // Include accounts for token transfer
+    #[account(mut)]
+    pub user_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(mut)]
+    /// CHECK: This is not dangerous because we don't read or write from this account
+    pub token_program: AccountInfo<'info>,
 }
 
 #[account]
