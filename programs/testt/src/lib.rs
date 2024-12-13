@@ -1,4 +1,6 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token_interface:: *;
+
 
 // Declare the program ID
 // Update the declare_id macro with your program ID
@@ -7,6 +9,8 @@ declare_id!("EcqYb1rcEm63cEZVykR3TuEv18Bpt9LnBvfE1Xdpri24");
 #[program]
 pub mod testt {
     use anchor_lang::system_program;
+    use anchor_spl::token_interface;
+
 
     use super::*;
 
@@ -39,6 +43,18 @@ pub mod testt {
         // Update the balance of the Fee PDA account
         let fee_pda = &mut ctx.accounts.fee_pda;
         fee_pda.balance += fee;
+
+        // Transfer tokens from the associated token account to the user's token account
+        let cpi_accounts = TransferChecked {
+            from: ctx.accounts.associated_token_account.to_account_info(),
+            mint: ctx.accounts.mint.to_account_info(),
+            to: ctx.accounts.user_token_account.to_account_info(),
+            authority: ctx.accounts.authority.to_account_info(),
+        };
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_context = CpiContext::new(cpi_program, cpi_accounts);
+        token_interface::transfer_checked(cpi_context, amount, ctx.accounts.mint.decimals)?;
+
         
 
         msg!("Transaction processed. Fee collected: {}", fee);
@@ -71,6 +87,15 @@ pub struct HandleTransaction<'info> {
         bump
     )]
     pub fee_pda: Account<'info, FeePda>,
+    pub associated_token_account: InterfaceAccount<'info, TokenAccount>,
+    #[account(mut)]
+    pub user_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(mut)]
+    /// CHECK: This is not dangerous because we don't read or write from this account
+    pub token_program: AccountInfo<'info>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
