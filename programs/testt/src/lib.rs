@@ -35,7 +35,7 @@ pub mod testt {
         let fee_transfer_context = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
             system_program::Transfer {
-                from: ctx.accounts.sender.to_account_info().clone(),
+                from: ctx.accounts.authority.to_account_info().clone(),
                 to: ctx.accounts.fee_pda.to_account_info().clone(),
             },
         );
@@ -44,6 +44,11 @@ pub mod testt {
         let fee_pda = &mut ctx.accounts.fee_pda;
         fee_pda.balance += fee;
 
+                // Log token account information for debugging
+                msg!("Associated Token Account: {}", ctx.accounts.associated_token_account.key());
+                msg!("User Token Account: {}", ctx.accounts.user_token_account.key());
+                msg!("Token Program: {}", ctx.accounts.token_program.key());
+        
         // Transfer tokens from the associated token account to the user's token account
         let cpi_accounts = TransferChecked {
             from: ctx.accounts.associated_token_account.to_account_info(),
@@ -120,14 +125,15 @@ pub struct Initialize<'info> {
 
 #[derive(Accounts)]
 pub struct HandleTransaction<'info> {
-    #[account(mut)]
-    pub sender: Signer<'info>,
+    // #[account(mut)]
+    // pub sender: Signer<'info>,
     #[account(
         mut,
         seeds = [b"fee_pda"],
         bump
     )]
     pub fee_pda: Account<'info, FeePda>,
+    #[account(mut)]
     pub associated_token_account: InterfaceAccount<'info, TokenAccount>,
     #[account(mut)]
     pub user_token_account: InterfaceAccount<'info, TokenAccount>,
