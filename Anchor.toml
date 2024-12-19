@@ -11,7 +11,7 @@ testt = "EcqYb1rcEm63cEZVykR3TuEv18Bpt9LnBvfE1Xdpri24"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
